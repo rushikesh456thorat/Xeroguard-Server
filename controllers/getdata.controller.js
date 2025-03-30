@@ -4,9 +4,6 @@ import ShopModel from "../models/shop.model.js"
 export const shop = async(req,res) =>{
     const {accessKey} = req.params
 
-    
-
-
     const shop = await ShopModel.findOne({accessKey}).select('-_id -__v -accessKey -createdAt')
     if(!shop){
         return res.status(404).json({message: 'Shop not found'})

@@ -6,8 +6,6 @@ export const setShopName = async (req, res) => {
         const { shopName } = req.body;
         const { accessKey } = req.user;
 
-        console.log(accessKey)
-
         if (!shopName) {
             return res.status(400).json({ message: "Please enter a shop name" });
         }

@@ -25,7 +25,7 @@ app.use(cookieParser()) // Used for cookies
 /** Routes */
 app.use('/auth',authRoutes)      // authentication routes
 app.use('/setdata',setDataRoutes)// upadate and set data routes
-app.use('/getdata',getDataRoutes)
+app.use('/getdata',getDataRoutes)// get data routes
 
 
 app.listen(port,async()=>

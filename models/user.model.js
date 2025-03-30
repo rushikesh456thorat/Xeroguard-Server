@@ -1,43 +1,55 @@
 import mongoose from "mongoose";
-import crypto from "crypto"; // For generating unique codes
-import ShopModel from "../models/shop.model.js"; // Import ShopModel
+import crypto from "crypto";
+import ShopModel from "../models/shop.model.js";
 
 const UserModelSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     phone: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "ShopModel" }
+    role: { 
+        type: String, 
+        required: true, 
+        enum: ['customer', 'shop_owner'],
+        default: 'customer'
+    },
+    shopId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: "ShopModel",
+        // Remove required here and handle it in pre-save
+    }
 });
 
-// Generate a unique 16-character alphanumeric key
 const generateUniqueKey = async (field) => {
     let uniqueKey;
     let exists = true;
 
     while (exists) {
-        uniqueKey = crypto.randomBytes(8).toString("hex").toUpperCase(); // Generates a 16-char key
+        uniqueKey = crypto.randomBytes(8).toString("hex").toUpperCase();
         exists = await ShopModel.findOne({ [field]: uniqueKey });
     }
 
     return uniqueKey;
 };
 
-// Create a shop before saving a new user
 UserModelSchema.pre("save", async function (next) {
-    if (!this.shopId) {
+    // Only proceed for shop owners
+    if (this.role === 'shop_owner') {
         try {
-            console.log("Generating accessKey and shopCode...");
+            // If shop already exists (maybe from a retry), skip creation
+            if (this.shopId) return next();
+
             const accessKey = await generateUniqueKey("accessKey");
             const shopCode = await generateUniqueKey("shopCode");
 
-            console.log("Creating shop with:", { accessKey, shopCode });
+            const newShop = new ShopModel({
+                accessKey,
+                shopCode,
+                owner: this._id // Add owner reference
+            });
 
-            // Create and save the shop
-            const newShop = new ShopModel({ accessKey, shopCode });
             await newShop.save();
-
             this.shopId = newShop._id;
-            console.log("Shop created with ID:", this.shopId);
+            
         } catch (error) {
             return next(error);
         }

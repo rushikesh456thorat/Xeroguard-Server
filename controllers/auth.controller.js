@@ -4,16 +4,14 @@ import { isEmail, isPhone, isPassword } from '../utils/validateInput.js';
 import ShopModel from '../models/shop.model.js';
 import generateTokenAndSetCookie from "../utils/generateToken.js"
 
-
 export const login = async (req, res) => {
     try {
         if (req.body.type === "phone") {
-            const { phone, password } = req.body;
+            const { phone, password, role } = req.body;
 
             if (!isPhone(phone)) {
                 return res.status(400).json({ error: "Invalid phone number" });
             }
-
 
             const user = await User.findOne({ phone });
 
@@ -21,18 +19,30 @@ export const login = async (req, res) => {
                 return res.status(401).json({ error: "Invalid Credentials" });
             }
 
-
             const isMatch = await bcrypt.compare(password, user.password);
 
             if (!isMatch) {
                 return res.status(401).json({ error: "Invalid Credentials" });
             }
-            generateTokenAndSetCookie(user._id,res)
-            const shop = await ShopModel({ __id: user.shopId })
-
+            
+            generateTokenAndSetCookie(user._id, res);
+            if(role !== user.role){
+                return res.status(401).json({ error: "Invalid Credentials" });
+            }
+            
+            // For shop owners, include shop info
+            if (user.role === 'shop_owner') {
+                const shop = await ShopModel.findById(user.shopId);
+                return res.status(200).json({
+                    message: "Login Successful",
+                    role: user.role,
+                    shopAccessKey: shop?.accessKey,
+                });
+            }
+            
             return res.status(200).json({
                 message: "Login Successful",
-                shopId: shop.accessKey,
+                role: user.role,
             });
 
         } else {
@@ -48,28 +58,32 @@ export const login = async (req, res) => {
             if (!isMatch) {
                 return res.status(401).json({ error: "Invalid Credentials" });
             }
-            generateTokenAndSetCookie(user._id,res)
-            const shop = await ShopModel.findById(user.shopId);
-
+            
+            generateTokenAndSetCookie(user._id, res);
+            
+            // For shop owners, include shop info
+            if (user.role === 'shop_owner') {
+                const shop = await ShopModel.findById(user.shopId);
+                return res.status(200).json({
+                    message: "Login Successful",
+                    role: user.role,
+                    shopAccessKey: shop?.accessKey,
+                });
+            }
+            
             return res.status(200).json({
                 message: "Login Successful",
-                shopId: shop.accessKey,
+                role: user.role,
             });
-
         }
-
-
     } catch (error) {
         res.status(500).send({ error: error.message })
     }
-
 }
 
-
 export const signup = async (req, res) => {
-
     try {
-        const { email, phone, password } = req.body;
+        const { email, phone, password, role } = req.body;
 
         if (!email || !phone || !password) {
             return res.status(400).json({ error: "Please fill all the fields" });
@@ -103,44 +117,42 @@ export const signup = async (req, res) => {
         const newUser = new User({
             email,
             phone,
-            password: hashedPassword
+            password: hashedPassword,
+            role
         });
 
         if (newUser) {
-
-            generateTokenAndSetCookie(newUser._id,res)
-
+            generateTokenAndSetCookie(newUser._id, res);
             await newUser.save();
 
-            const shop = await ShopModel.findById(newUser.shopId);
-
-            if (!shop) {
-                return res.status(400).json({ error: "Shop not found" });
+            // For shop owners, include shop info
+            if (newUser.role === 'shop_owner') {
+                const shop = await ShopModel.findById(newUser.shopId);
+                if (!shop) {
+                    return res.status(400).json({ error: "Shop not found" });
+                }
+                return res.status(201).json({
+                    message: "User registered successfully",
+                    role: newUser.role,
+                    shopAccessKey: shop.accessKey,
+                });
             }
-
+            
             return res.status(201).json({
                 message: "User registered successfully",
-                shopAccessKey: shop.accessKey,
+                role: newUser.role,
             });
-
         }
-
-
-
     } catch (error) {
         return res.status(500).json({ error: "Server error", details: error.message });
     }
 };
 
 export const logout = (req, res) => {
-    try{
-
-        res.cookie("jwt","",{maxAge:0})
-        res.status(200).json({message:"Logged out successfully!"})
-
+    try {
+        res.cookie("jwt", "", { maxAge: 0 });
+        res.status(200).json({ message: "Logged out successfully!" });
     } catch (error) {
         return res.status(500).json({ error: "Server error", details: error.message });
     }
-
-
 }
